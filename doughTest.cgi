@@ -14,7 +14,7 @@ my $awsDom = 'Dough_Transactions_Test';
 
 my $q = new CGI;
 my $response = "";
-my $hashSubstrSize = 10;
+my $hashSubstrSize = 15;
 
 my $whereConcreteSaveKeys = {url => 1, staticMapUrl => 1, titleNoFormatting => 1, 
     city => 1, region => 1,  country => 1,  streetAddress => 1};
@@ -35,20 +35,25 @@ if ($q->request_method() eq "POST")
         
         open (T, "+>>/tmp/doughTest.out") or die "$!\n\n";
         print T "-----\n" . scalar(localtime()). "\n-----\n" . 
-            "PhoneID:\t" . $q->param('phid') . "\n" . "SHA-1 Check:\t$sha vs $checkSha ($parityFault)\n";
+            "PhoneID:\t$phid\n" . "Domain:\t\t$awsDom\nSHA-1 Check:\t$sha vs $checkSha ($parityFault)\n";
 
         foreach my $jHash (@{$json})
         {
-            my $jSha = sha1_hex($jHash);
+            my $jSha = sha1_hex(%{$jHash});
             my $reqHash = {
                 DomainName      => $awsDom,
-                ItemName        => "${phid}." . substr($checkSha, 0, $hashSubstrSize) . "-" . substr($jSha, 0, $hashSubstrSize),
-                Attribute       => []
+                ItemName        => substr($checkSha, 0, $hashSubstrSize - 5) . "-" . substr($jSha, 0, $hashSubstrSize + 5),
+                Attribute       => [
+                    {
+                        Name    => "deviceID",
+                        Value   => $phid
+                    }
+                ]
             };
 
-            if ($parityFault) {
-                push (@{$reqHash->{Attribute}}, { Name => "parityFault", Value => "$sha-$checkSha" });
-            }
+            #if ($parityFault) {
+            #    push (@{$reqHash->{Attribute}}, { Name => "parityFault", Value => "$sha-$checkSha" });
+            #}
 
             # loop through the keys given, adding them as attributes, noting special cases such
             # as the 'where' hash, which is complex.
@@ -84,7 +89,7 @@ if ($q->request_method() eq "POST")
 
                 if ($resp->isSetResponseMetadata() && (my $rMeta = $resp->getResponseMetadata()))
                 {
-                    print T "ItemName:\t" . ($reqHash->{ItemName}) . "\n";
+                    print T "\nItemName:\t" . ($reqHash->{ItemName}) . "\n";
                     print T "RequestID:\t" . ($rMeta->getRequestId() . "\n"), if ($rMeta->isSetRequestId());
                     print T "BoxUsage:\t" . ($rMeta->getBoxUsage() . "\n"), if ($rMeta->isSetBoxUsage());
                 }
