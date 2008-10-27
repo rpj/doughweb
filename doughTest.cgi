@@ -5,7 +5,7 @@ use JSON::XS;
 use Data::Dumper;
 use Digest::SHA qw(sha1_hex);
 
-use lib qw(../libperl/);
+use lib qw(../libperl);
 use Amazon::SimpleDB;
 use Amazon::SimpleDB::Client;
 
@@ -23,20 +23,28 @@ my $g_whereConcreteSaveKeys = {url => 1, staticMapUrl => 1, titleNoFormatting =>
 my $g_q = new CGI;
 my $g_sdbServ = Amazon::SimpleDB::Client->new($k_awsKey, $k_awsSec);
 
-sub sendPutAttrReqToSDB($)
+sub sendReqToSDB($$)
 {
 	my $reqHash = shift;
+    my $reqFunc = shift;
+    my $retVal = 0;
 	
 	eval
 	{
-		my $resp = $g_sdbServ->putAttributes($reqHash);
+        # funky way of calling a class method, but these here are funky "classes"
+        print T "\n";
+        print T "Domain:\t\t" . $reqHash->{DomainName} . "\n";
+
+		my $resp = &$reqFunc($g_sdbServ, $reqHash);
 		
 		if ($resp->isSetResponseMetadata() && (my $rMeta = $resp->getResponseMetadata()))
 		{
-			print T "\nItemName:\t" . ($reqHash->{ItemName}) . "\n";
+			print T "ItemName:\t" . ($reqHash->{ItemName}) . "\n";
 			print T "RequestID:\t" . ($rMeta->getRequestId() . "\n"), if ($rMeta->isSetRequestId());
 			print T "BoxUsage:\t" . ($rMeta->getBoxUsage() . "\n"), if ($rMeta->isSetBoxUsage());
 		}
+
+        $retVal = $resp;
 	};
 	
 	if ((my $ex = $@))
@@ -45,10 +53,15 @@ sub sendPutAttrReqToSDB($)
 		$g_response = "<center><h1>Error 500: Internal Server Error</h1></center>";
 		print T "Exception: " . Dumper($ex) . "\n";
 		print T "Request: " . Dumper($reqHash) . "\n";
-		return 0;
+	    $retVal = 0;
 	}
 	
-	return 1;
+	return $retVal;
+}
+
+sub sendPutAttrReqToSDB($)
+{
+    return sendReqToSDB(shift, \&Amazon::SimpleDB::Client::putAttributes);
 }
 
 sub procTA($$$)
@@ -132,7 +145,25 @@ if ($reqMethod && $reqMethod eq "POST")
 		}
 		elsif ($act eq 'nu')					# new user
 		{
-            print T "New User at device $phid\n";
+            my $rHash = { DomainName => $k_awsUserDom, ItemName => $phid };
+
+            my $resp = sendReqToSDB($rHash, \&Amazon::SimpleDB::Client::getAttributes);
+
+            if ($resp && $resp->isSetGetAttributesResult())
+            {
+                my $res = $resp->getGetAttributesResult();
+                $rHash->{Attribute} = [ { Name => 'dateRegistered', Value => scalar(localtime()) } ];
+                
+                if ($res->isSetAttribute() || ($resp = sendPutAttrReqToSDB($rHash)))
+                {
+                    $g_response = "Success";
+                }
+                else
+                {
+                    print T Dumper($resp) . "\n";
+                    $g_response = "Failure (Bad Registration)";
+                }
+            }
 		}
 		else
 		{
@@ -144,6 +175,7 @@ if ($reqMethod && $reqMethod eq "POST")
     }
 
 FAIL_OUT:
+    print T "Response:\t'$g_response'\n";
     print T "-----\n\n";
     close(T);
 
