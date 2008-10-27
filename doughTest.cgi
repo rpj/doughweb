@@ -14,7 +14,7 @@ my $k_awsSec = "67eHsTHoFWAgWqE/EluaqQAtalEF8P+Ni7upo3PV";
 my $k_awsTADom = 'Dough_Transactions_Test';
 my $k_awsUserDom = 'Dough_Users_Test';
 
-my $g_response = "";
+my $g_response = undef;
 my $g_hashSubstrSize = 15;
 
 my $g_whereConcreteSaveKeys = {url => 1, staticMapUrl => 1, titleNoFormatting => 1, 
@@ -123,6 +123,39 @@ sub procTA($$$)
 	return 1;
 }
 
+sub procNU($)
+{
+    my $phid = shift;
+    my $rHash = { DomainName => $k_awsUserDom, ItemName => $phid };
+
+    my $resp = sendReqToSDB($rHash, \&Amazon::SimpleDB::Client::getAttributes);
+
+    if ($resp && $resp->isSetGetAttributesResult())
+    {
+        my $res = $resp->getGetAttributesResult();
+        $rHash->{Attribute} = [ { Name => 'dateRegistered', Value => scalar(localtime()) } ];
+        
+        unless ($res->isSetAttribute() || ($resp = sendPutAttrReqToSDB($rHash)))
+        {
+            print T Dumper($resp) . "\n";
+            $g_response = "Failure (Bad Registration)";
+        }
+    }
+}
+
+sub procNP($$$)
+{
+    my ($phid, $u, $p) = @_;
+    my $rHash = { DomainName => $k_awsUserDom, ItemName => $phid };
+
+    $rHash->{Attribute} = [
+        { Name => "name", Value => $u, Replace => 1 },
+        { Name => "psha", Value => $p, Replace => 1 }
+    ];
+
+    return sendPutAttrReqToSDB($rHash);
+}
+
 #####
 my $reqMethod = $g_q->request_method();
 if ($reqMethod && $reqMethod eq "POST")
@@ -131,7 +164,8 @@ if ($reqMethod && $reqMethod eq "POST")
 	
 	open (T, "+>>/tmp/doughTest.out") or die "$!\n\n";
 	print T "-----\n" . scalar(localtime()). "\n-----\n" . 
-		"PhoneID:\t$phid\n" . "TA Domain:\t$k_awsTADom\nUser Domain:\t$k_awsUserDom\n";
+		"PhoneID:\t$phid\n";
+        #. "TA Domain:\t$k_awsTADom\nUser Domain:\t$k_awsUserDom\n";
 
     if ($phid) 
 	{
@@ -141,48 +175,44 @@ if ($reqMethod && $reqMethod eq "POST")
 
 		if ($act eq 'ta' && $sha && $json)		# new transaction
 		{
-			goto FAIL_OUT, if (!procTA($phid, $sha, $json));
+			procTA($phid, $sha, $json);
 		}
 		elsif ($act eq 'nu')					# new user
 		{
-            my $rHash = { DomainName => $k_awsUserDom, ItemName => $phid };
+            procNU($phid);
+	    }
+        elsif ($act eq 'np')                    # new password
+        {
+            my $uname = $q->param('uname');
+            my $phash = $q->param('psha');
 
-            my $resp = sendReqToSDB($rHash, \&Amazon::SimpleDB::Client::getAttributes);
-
-            if ($resp && $resp->isSetGetAttributesResult())
+            if ($uname && $phash)
             {
-                my $res = $resp->getGetAttributesResult();
-                $rHash->{Attribute} = [ { Name => 'dateRegistered', Value => scalar(localtime()) } ];
-                
-                if ($res->isSetAttribute() || ($resp = sendPutAttrReqToSDB($rHash)))
-                {
-                    $g_response = "Success";
-                }
-                else
-                {
-                    print T Dumper($resp) . "\n";
-                    $g_response = "Failure (Bad Registration)";
-                }
+                procNP($phid, $uname, $phash);
             }
-		}
+            else
+            {
+                $g_response = "Error 500 Bad Arguments (Act=NP)";
+            }
+        }
 		else
 		{
+            $g_response = "Error 500 Internal Server Error (Bad Arguments)";
 		}
     }
     else
     {
-        $g_response = "<center><h1>Error 406: Not Acceptable</h1></center>";
+        $g_response = "Error 406 Not Acceptable";
     }
 
-FAIL_OUT:
-    print T "Response:\t'$g_response'\n";
+    print T "\nResponse:\t'$g_response'\n", if ($g_response);
     print T "-----\n\n";
     close(T);
 
 }
 else
 {
-    $g_response = "<center><h1>Error 405: Method Not Allowed</h1></center>";
+    $g_response = "Error 405 Method Not Allowed";
 }
 
 print $g_q->header();
