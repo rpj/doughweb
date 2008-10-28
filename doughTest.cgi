@@ -39,7 +39,7 @@ sub sendReqToSDB($$)
 		
 		if ($resp->isSetResponseMetadata() && (my $rMeta = $resp->getResponseMetadata()))
 		{
-			print T "ItemName:\t" . ($reqHash->{ItemName}) . "\n";
+			print T "ItemName:\t" . ($reqHash->{ItemName}) . "\n", if ($reqHash->{ItemName});
 			print T "RequestID:\t" . ($rMeta->getRequestId() . "\n"), if ($rMeta->isSetRequestId());
 			print T "BoxUsage:\t" . ($rMeta->getBoxUsage() . "\n"), if ($rMeta->isSetBoxUsage());
 		}
@@ -155,6 +155,8 @@ sub procNU($)
 sub procNP($$$)
 {
     my ($phid, $u, $p) = @_;
+    # have to check if itemname=>$u exists in user table, if not then create it otherwise fail
+
     my $rHash = { DomainName => $k_awsUserDom, ItemName => $phid };
 
     $rHash->{Attribute} = [
@@ -165,24 +167,38 @@ sub procNP($$$)
     return sendPutAttrReqToSDB($rHash);
 }
 
+sub procQWA($$)
+{
+    my ($phid, $dom) = @_;
+    my $qDom = ($dom && $dom eq 'u' ? $k_awsUserDom : $k_awsTADom);
+
+    my $qStr = "['deviceID' = '$phid']";
+    my $rHash = { DomainName => $qDom, QueryExpression => $qStr };
+    return sendReqToSDB($rHash, \&Amazon::SimpleDB::Client::queryWithAttributes);
+}
+
 #####
 my $reqMethod = $g_q->request_method();
-if ($reqMethod && $reqMethod eq "POST")
-{
-    my $phid = $g_q->param('phid');
-	
-	open (T, "+>>/tmp/doughTest.out") or die "$!\n\n";
-	print T "-----\n" . scalar(localtime()). "\n-----\n" . 
-		"PhoneID:\t$phid\n";
-        #. "TA Domain:\t$k_awsTADom\nUser Domain:\t$k_awsUserDom\n";
+my $phid = $g_q->param('phid');
+my $act = $g_q->param('act');
 
+open (T, "+>>/tmp/doughTest.out") or die "$!\n\n";
+print T "-----\n" . scalar(localtime()). "\n-----\n" . 
+    "PhoneID:\t$phid\n";
+    #. "TA Domain:\t$k_awsTADom\nUser Domain:\t$k_awsUserDom\n";
+
+print T "Action:\t\t'$act' via '$reqMethod'\n";
+
+if ($act eq 'qwa' && $phid)                     #query with attr, doesn't req. POST
+{
+    $g_response = Dumper(procQWA($phid, $g_q->param('d')));
+}
+elsif ($reqMethod && $reqMethod eq "POST")
+{
     if ($phid) 
 	{
         my $sha = $g_q->param('sha');
-        my $act = $g_q->param('act');
         my $json = decode_json($g_q->param('json')), if ($g_q->param('json'));
-
-        print T "Action:\t\t$act\n";
 
 		if ($act eq 'ta' && $sha && $json)		# new transaction
 		{
@@ -215,16 +231,15 @@ if ($reqMethod && $reqMethod eq "POST")
     {
         $g_response = "Error 406 Not Acceptable";
     }
-
-    print T "\nResponse:\t'$g_response'\n", if ($g_response);
-    print T "-----\n\n";
-    close(T);
-
 }
 else
 {
     $g_response = "Error 405 Method Not Allowed";
 }
+
+print T "\nResponse:\t'$g_response'\n", if ($g_response && length($g_response) < 1024);
+print T "-----\n\n";
+close(T);
 
 print $g_q->header();
 print $g_response;
