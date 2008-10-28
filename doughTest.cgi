@@ -69,6 +69,7 @@ sub procTA($$$)
 	my ($phid, $sha, $json) = @_;
 	my $checkSha = sha1_hex($g_q->param('json'));
 	my $parityFault = ($sha eq $checkSha) ? 0 : 1;
+    my $retVal = 0;
 	
 	print T "SHA-1 Check:\t$sha vs $checkSha ($parityFault)\n";
 	
@@ -114,19 +115,17 @@ sub procTA($$$)
 		}
 		
 		# run the request against SimpleDB
-		if (!sendPutAttrReqToSDB($reqHash))
-		{
-			return 0;
-		}
+		last, if (!($retVal = sendPutAttrReqToSDB($reqHash)));
 	}
 	
-	return 1;
+	return $retVal;
 }
 
 sub procNU($)
 {
     my $phid = shift;
     my $rHash = { DomainName => $k_awsUserDom, ItemName => $phid };
+    my $resHash = undef;
 
     my $resp = sendReqToSDB($rHash, \&Amazon::SimpleDB::Client::getAttributes);
 
@@ -140,7 +139,17 @@ sub procNU($)
             print T Dumper($resp) . "\n";
             $g_response = "Failure (Bad Registration)";
         }
+        else
+        {
+            $resHash = {};
+            foreach (@{$res->getAttribute()})
+            {
+                $resHash->{$_->getName()} = $_->getValue(), unless ($_->getName() eq 'psha');
+            }
+        }
     }
+
+    return $resHash;
 }
 
 sub procNP($$$)
@@ -173,22 +182,24 @@ if ($reqMethod && $reqMethod eq "POST")
         my $act = $g_q->param('act');
         my $json = decode_json($g_q->param('json')), if ($g_q->param('json'));
 
+        print T "Action:\t\t$act\n";
+
 		if ($act eq 'ta' && $sha && $json)		# new transaction
 		{
-			procTA($phid, $sha, $json);
+			$g_response = "Unable to process request.", unless (procTA($phid, $sha, $json));
 		}
 		elsif ($act eq 'nu')					# new user
 		{
-            procNU($phid);
+            $g_response = encode_json(procNU($phid));
 	    }
         elsif ($act eq 'np')                    # new password
         {
-            my $uname = $q->param('uname');
-            my $phash = $q->param('psha');
+            my $uname = $g_q->param('uname');
+            my $phash = $g_q->param('psha');
 
             if ($uname && $phash)
             {
-                procNP($phid, $uname, $phash);
+                $g_response = "Bad user add." unless (procNP($phid, $uname, $phash));
             }
             else
             {
