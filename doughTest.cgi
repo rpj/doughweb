@@ -5,8 +5,6 @@ use JSON::XS;
 use Data::Dumper;
 use Digest::SHA qw(sha1_hex);
 
-use lib qw(../libperl);
-use Amazon::SimpleDB;
 use Amazon::SimpleDB::Client;
 
 my $k_awsKey = "0639RVH93HXWSTAP9WG2";
