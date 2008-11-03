@@ -6,6 +6,7 @@ use JSON::XS;
 use Dough::Config;
 use Dough::Log;
 use Dough::CGI::Process;
+use Dough::SDB;
 
 sub new {
 	my $class = shift;
@@ -15,6 +16,7 @@ sub new {
 	$self->{q} = new CGI;
 	$self->{resp} = {};
 	$self->{l} = Dough::Log->instance();
+    $self->{sdb} = Dough::SDB->new();
 
 	return $self;
 }
@@ -27,14 +29,14 @@ sub processQuery {
 	my $phid = $s->{phid} = $q->param('phid');
 	my $act = $s->{act} = $q->param('act');
 
-	my $procFunc = \&Dough::CGI::Process::queryWithAttributes;
+    my $procFunc;
 
 	if ($phid) {
 		if ($rm eq "POST") {
 		}
 		else {
 			if ($act eq 'qwa') {
-				$procFunc = \&process_QueryWithAttribute;
+	            $procFunc = \&Dough::CGI::Process::qwa;
 			}
 		}
 	}
@@ -44,11 +46,13 @@ sub processQuery {
 
 	if (defined($procFunc)) {
 		$s->{resp} = &$procFunc($s);
-		print "PROC FUNC result: $s->{resp}\n";
+		$s->{l}->log("PROC FUNC result: $s->{resp}");
 	}
 	else {
 		$s->{l}->log("Undefined procFunc!");
 	}
+
+    return $s->{resp};
 }
 
 sub sendResponse {

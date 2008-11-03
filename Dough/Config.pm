@@ -8,6 +8,6 @@ our $k_awsSec = "67eHsTHoFWAgWqE/EluaqQAtalEF8P+Ni7upo3PV";
 our $k_awsTADom = 'Dough_Transactions_Test';
 our $k_awsUserDom = 'Dough_Users_Test';
 
-our $k_logFile = '/tmp/doughBridge.log';
+our $k_logFile = '/home/sulciphur/wlogs/doughBridge.log';
 
 1;

@@ -22,10 +22,33 @@ sub instance {
 	return ($singleton || (shift)->new());
 }
 
+sub __output {
+    my ($s, $level, $str) = @_;
+
+    my $fh = $s->{handle};
+    my ($pkg, $fname, $line) = caller(1);
+    print STDERR "$s $level $fname:$line $str\n", if ($level);
+
+	print $fh scalar(localtime()) . " - $level - " . sprintf("%-30s", "$fname:$line") . 
+        " \"$str\"\n", if (defined($fh) && defined($str));
+
+    for ($i = 0; $i < $level; $i++) {
+        my ($pkg, $fn, $ln, $sub, $hash, $warray, $eval, $isr) = caller($i+1);
+        print $fh ' 'x($i+28) . " +- $pkg - $fn - $ln - $sub - $hash - $warray - $eval - $isr\n";
+    }
+}
+
 sub log {
-	my ($s, $str) = @_;
-	my $fh = $s->{handle};
-	print $fh "$str\n", if (defined($fh) && defined($str));
+    $_[0]->__output(0, $_[1]); 
+}
+
+sub debug {
+    $_[0]->__output(1, $_[1]);
+}
+
+sub sep {
+    my $fh = $_[0]->{handle};
+    print $fh "" . ' 'x25 . '-'x50 . "\n";
 }
 
 1;

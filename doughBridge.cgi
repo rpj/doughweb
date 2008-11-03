@@ -1,15 +1,21 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -w
+
+use lib qw(/home/sulciphur/lib/perl5/lib/x86_64-linux-gnu-thread-multi /home/sulciphur/lib/perl5/lib);
 
 use Dough::CGI;
 use Dough::Log;
 use Dough::Config;
 
-print "Key: $k_awsKey\n";
-print "$k_logFile\n";
-
 my $log = Dough::Log->instance();
-print "Log: $log\n";
-$log->log("A log message: $k_awsSec");
-
 my $cgi = Dough::CGI->new();
-$cgi->processQuery();
+
+if ($cgi->processQuery()) {
+    $cgi->sendResponse();
+    $log->log("Success.");
+}
+else {
+    $log->log("No response object.");
+    print "Content-type: text/plain\n\nError.";
+}
+
+$log->sep;

@@ -1,5 +1,10 @@
 #!/usr/bin/perl
 
+use Time::HiRes qw(gettimeofday tv_interval);
+my $t0 = [gettimeofday];
+
+use lib qw(/home/sulciphur/lib/perl5/lib/x86_64-linux-gnu-thread-multi);
+
 use CGI qw/:all/;
 use JSON::XS;
 use Data::Dumper;
@@ -11,6 +16,7 @@ my $k_awsKey = "0639RVH93HXWSTAP9WG2";
 my $k_awsSec = "67eHsTHoFWAgWqE/EluaqQAtalEF8P+Ni7upo3PV";
 my $k_awsTADom = 'Dough_Transactions_Test';
 my $k_awsUserDom = 'Dough_Users_Test';
+my $k_logFile = '/home/sulciphur/wlogs/doughTest.log';
 
 my $g_response = undef;
 my $g_hashSubstrSize = 15;
@@ -180,7 +186,7 @@ my $reqMethod = $g_q->request_method();
 my $phid = $g_q->param('phid');
 my $act = $g_q->param('act');
 
-open (T, "+>>/tmp/doughTest.out") or die "$!\n\n";
+open (T, "+>>$k_logFile") or die "$k_logFile: $!\n\n";
 print T "-----\n" . scalar(localtime()). "\n-----\n" . 
     "PhoneID:\t$phid\n";
     #. "TA Domain:\t$k_awsTADom\nUser Domain:\t$k_awsUserDom\n";
@@ -235,7 +241,9 @@ else
     $g_response = "Error 405 Method Not Allowed";
 }
 
+
 print T "\nResponse:\t'$g_response'\n", if ($g_response && length($g_response) < 1024);
+print T "\nElapsed:\t" . scalar(tv_interval($t0)) . "\n";
 print T "-----\n\n";
 close(T);
 
