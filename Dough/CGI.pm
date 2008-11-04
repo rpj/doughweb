@@ -18,6 +18,10 @@ sub new {
 	$self->{l} = Dough::Log->instance();
     $self->{sdb} = Dough::SDB->new();
 
+    if (!(scalar($self->{q}->param))) {
+        return undef;
+    }
+
 	return $self;
 }
 
@@ -32,7 +36,13 @@ sub processQuery {
     my $procFunc;
 
 	if ($phid) {
-		if ($rm eq "POST") {
+		if ($rm eq "GET") {
+            if ($act eq 'ta') {
+                $s->{sha} = $q->param('sha');
+                $s->{json} = decode_json($q->param('json')), if ($q->param('json'));
+
+                $procFunc = \&Dough::CGI::Process::ta, if ($s->{sha} && $s->{json});
+            }
 		}
 		else {
 			if ($act eq 'qwa') {
@@ -41,24 +51,24 @@ sub processQuery {
 		}
 	}
 	else {
-		$s->{resp} = { 'Error' => 'No Device ID given; not enough arguments.' };
+		$s->{resp} = { 'Error' => 'Insufficient arguments.' };
 	}
 
 	if (defined($procFunc)) {
 		$s->{resp} = &$procFunc($s);
-		$s->{l}->log("PROC FUNC result: $s->{resp}");
-	}
-	else {
-		$s->{l}->log("Undefined procFunc!");
+        $s->{l}->log("No result from $procFunc!"), unless(defined($s->{resp}));
 	}
 
     return $s->{resp};
 }
 
-sub sendResponse {
+sub sendResponseAsJSON {
 	my $s = shift;
 
-	print $s->{q}->header();
+	#print $s->{q}->header('application/json');
+    print $s->{q}->header('text/plain');
 	print encode_json($s->{resp});
+
+    return !(defined($s->{resp}->{Error}));
 }
 1;

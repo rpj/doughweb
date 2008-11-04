@@ -51,4 +51,13 @@ sub sep {
     print $fh "" . ' 'x25 . '-'x50 . "\n";
 }
 
+sub sepWStr {
+    my ($s, $str) = @_;
+    $str = ">> $str";
+    my $fh = $s->{handle};
+    my $ls = length($str);
+
+    print $fh "$str" . (($ls < 25) ? ' 'x(25-$ls) : '') . '-'x50 . "\n";
+}
+
 1;
