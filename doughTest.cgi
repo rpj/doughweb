@@ -12,8 +12,8 @@ use Digest::SHA qw(sha1_hex);
 
 use Amazon::SimpleDB::Client;
 
-my $k_awsKey = "0639RVH93HXWSTAP9WG2";
-my $k_awsSec = "67eHsTHoFWAgWqE/EluaqQAtalEF8P+Ni7upo3PV";
+my $k_awsKey = "";
+my $k_awsSec = "";
 my $k_awsTADom = 'Dough_Transactions_Test';
 my $k_awsUserDom = 'Dough_Users_Test';
 my $k_logFile = '/home/sulciphur/wlogs/doughTest.log';
